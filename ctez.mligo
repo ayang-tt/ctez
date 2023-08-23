@@ -97,7 +97,7 @@ let get_ctez_mint_or_burn (fa12_address : address) : (int * address) contract =
 
 (* Entrypoint Functions *)
 let create (s : storage) (create : create) : result =
-  let handle = { id = create.id ; owner = Tezos.sender } in
+  let handle = { id = create.id ; owner = Tezos.get_sender () } in
   if Big_map.mem handle s.ovens then
     (failwith error_OVEN_ALREADY_EXISTS : result)
   else
@@ -116,7 +116,7 @@ let set_addresses (s : storage) (addresses : set_addresses) : result =
     (([] : operation list), {s with ctez_fa12_address = addresses.ctez_fa12_address ; cfmm_address = addresses.cfmm_address})
 
 let withdraw (s : storage) (p : withdraw)   : result =
-  let handle = {id = p.id ; owner = Tezos.sender} in
+  let handle = {id = p.id ; owner = Tezos.get_sender ()} in
   let oven : oven = get_oven handle s in
   let oven_contract = get_oven_withdraw oven.address in
 
@@ -133,7 +133,7 @@ let withdraw (s : storage) (p : withdraw)   : result =
 let register_deposit (s : storage) (p : register_deposit) : result =
     (* First check that the call is legit *)
     let oven = get_oven p.handle s in
-    if oven.address <> Tezos.sender then
+    if oven.address <> Tezos.get_sender () then
       (failwith error_INVALID_CALLER_FOR_OVEN_OWNER : result)
     else
       (* register the increased balance *)
@@ -157,13 +157,13 @@ let liquidate (s: storage) (p : liquidate) : result  =
     let oven_contract = get_oven_withdraw oven.address in
     let op_take_collateral = Tezos.transaction (extracted_balance, p.to_) 0mutez oven_contract in
     let ctez_mint_or_burn = get_ctez_mint_or_burn s.ctez_fa12_address in
-    let op_burn_ctez = Tezos.transaction (-p.quantity, Tezos.sender) 0mutez ctez_mint_or_burn in
+    let op_burn_ctez = Tezos.transaction (-p.quantity, Tezos.get_sender ()) 0mutez ctez_mint_or_burn in
     ([op_burn_ctez ; op_take_collateral], s)
   else
     (failwith error_OVEN_NOT_UNDERCOLLATERALIZED : result)
 
 let mint_or_burn (s : storage) (p : mint_or_burn) : result =
-  let handle = { id = p.id ; owner = Tezos.sender } in
+  let handle = { id = p.id ; owner = Tezos.get_sender () } in
   let oven : oven = get_oven handle s in
   let ctez_outstanding = match Michelson.is_nat (oven.ctez_outstanding + p.quantity) with
     | None -> (failwith error_CANNOT_BURN_MORE_THAN_OUTSTANDING_AMOUNT_OF_CTEZ : nat)
@@ -176,7 +176,7 @@ let mint_or_burn (s : storage) (p : mint_or_burn) : result =
     (* mint or burn quantity in the fa1.2 of ctez *)
   else
     let ctez_mint_or_burn = get_ctez_mint_or_burn s.ctez_fa12_address in
-    ([Tezos.transaction (p.quantity, Tezos.sender) 0mutez ctez_mint_or_burn], s)
+    ([Tezos.transaction (p.quantity, Tezos.get_sender ()) 0mutez ctez_mint_or_burn], s)
 
 let get_target (storage : storage) (callback : nat contract) : result =
   ([Tezos.transaction storage.target 0mutez callback], storage)
